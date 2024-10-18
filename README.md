@@ -16,7 +16,7 @@ The mmdb file created will be used by other applications for IP address/prefix l
 Install with python pip install
 
 ```bash
-  git clone https://github.com/sbng/mrt2mmdb.git
+  git clone https://github.com/Quad9DNS/mrt2mmdb.git
   cd mrt2mmdb
   pip install -e .
 ```
