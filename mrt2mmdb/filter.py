@@ -23,6 +23,31 @@ from args import (
 # pylint: disable=global-statement
 args = {}
 
+def delete_key(nested_dict, key_list):
+    """
+    Deletes a key from a nested dictionary.
+
+    Args:
+        nested_dict (dict): The nested dictionary.
+        key_path (list): A list of keys representing the path to the key to delete.
+
+    Returns:
+        The updated dictionary.
+    """
+    key_path = key_list.split(".")
+    current_dict = nested_dict
+    for key in key_path[:-1]:  # Iterate over all keys except the last one
+        if key in current_dict:
+            try:
+                current_dict = current_dict[key]
+            except:
+                pass
+    if key_path[-1] in current_dict:  # Check if the last key exists
+        try:
+            del current_dict[key_path[-1]]
+        except:
+            pass
+    return nested_dict
 
 def decode_pointer(res, reader):
     """
@@ -55,7 +80,8 @@ def filter_dict(raw):
     ignore_keys = []
     ignore_lang = ["de", "es", "fr", "ja", "pt-BR", "ru", "zh-CN"]
     if args.trim:
-        rem_keys = ignore_keys + ignore_lang + args.trim
+        key_path_list = [x for x in args.trim if "." in x]
+        rem_keys = ignore_keys + ignore_lang + [x for x in args.trim if "." not in x] 
     else:
         rem_keys = ignore_keys + ignore_lang
 
@@ -72,8 +98,13 @@ def filter_dict(raw):
             if key1 not in rem_keys
         }
     )
-    return fnc(raw)
+    
+    filtered_dict = fnc(raw)
 
+    for key_path in key_path_list:
+        delete_key(filtered_dict,key_path)    
+
+    return filtered_dict
 
 def load_db(fname):
     """
