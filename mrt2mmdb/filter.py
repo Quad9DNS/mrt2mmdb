@@ -81,12 +81,11 @@ def filter_dict(raw):
     list
     """
     ignore_keys = []
-    ignore_lang = ["de", "es", "fr", "ja", "pt-BR", "ru", "zh-CN"]
     if args.trim:
         key_path_list = [x for x in args.trim if "." in x]
-        rem_keys = ignore_keys + ignore_lang + [x for x in args.trim if "." not in x]
+        rem_keys = ignore_keys +  [x for x in args.trim if "." not in x]
     else:
-        rem_keys = ignore_keys + ignore_lang
+        rem_keys = ignore_keys 
 
     fnc = lambda sub: (
         [
