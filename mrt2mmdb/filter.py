@@ -23,6 +23,7 @@ from args import (
 # pylint: disable=global-statement
 args = {}
 
+
 def delete_key(nested_dict, key_list):
     """
     Deletes a key from a nested dictionary.
@@ -49,6 +50,7 @@ def delete_key(nested_dict, key_list):
             pass
     return nested_dict
 
+
 def decode_pointer(res, reader):
     """
     This function will decode the data section pointer and return a data offset
@@ -62,7 +64,7 @@ def decode_pointer(res, reader):
         pointer = (b0 & 0x07) << 24 | b1 << 16 | b2 << 8 | b3
         pointer += 526336
     elif len(res) == 3:
-        b0, b1, b2 =  struct.unpack(">BBB", res)
+        b0, b1, b2 = struct.unpack(">BBB", res)
         pointer = (b0 & 0x07) << 16 | b1 << 8 | b2
         pointer += 2048
     elif len(res) == 2:
@@ -71,6 +73,7 @@ def decode_pointer(res, reader):
     else:
         raise ValueError("Invalid encoded pointer")
     return struct.pack(">I", pointer + reader._metadata.node_count + 16)
+
 
 def filter_dict(raw):
     """
@@ -81,7 +84,7 @@ def filter_dict(raw):
     ignore_lang = ["de", "es", "fr", "ja", "pt-BR", "ru", "zh-CN"]
     if args.trim:
         key_path_list = [x for x in args.trim if "." in x]
-        rem_keys = ignore_keys + ignore_lang + [x for x in args.trim if "." not in x] 
+        rem_keys = ignore_keys + ignore_lang + [x for x in args.trim if "." not in x]
     else:
         rem_keys = ignore_keys + ignore_lang
 
@@ -98,18 +101,19 @@ def filter_dict(raw):
             if key1 not in rem_keys
         }
     )
-    
+
     filtered_dict = fnc(raw)
 
     for key_path in key_path_list:
-        delete_key(filtered_dict,key_path)    
+        delete_key(filtered_dict, key_path)
 
     return filtered_dict
+
 
 def load_db(fname):
     """
     Load mmdb file and use it to create a generator expression to
-    avoid loading the entire structure into the memory. This function 
+    avoid loading the entire structure into the memory. This function
     will return a list of prefix/dictionaries generator expression
     """
     result = []
@@ -129,7 +133,7 @@ def rewrite(fname, dic_data, count):
             data_section_end = reader._buffer.rfind(
                 reader._METADATA_START_MARKER, max(0, reader._buffer_size - 128 * 1024)
             )
-    
+
             resolved = data_section_start
             metadata_cache = reader._buffer[data_section_end:]
             encode_record = Encoder(cache=True)
@@ -153,9 +157,7 @@ def rewrite(fname, dic_data, count):
                 Result :      Tuple of location of leaf node (loc) and the pointer 
                               (data_pointer) to the data. 
                 """
-                ((_, loc), _) = reader._find_address_in_tree_loc(
-                    address
-                )
+                ((_, loc), _) = reader._find_address_in_tree_loc(address)
                 fh.seek(loc)
                 fh.write(pack_pointer)
                 """
@@ -178,9 +180,7 @@ def main():
     """
     main function for the workflow
     """
-    parser = get_args(
-        [mmdb_arg,trim_arg,quiet_arg]
-    )
+    parser = get_args([mmdb_arg, trim_arg, quiet_arg])
     global args
     args = parser.parse_args()
     if not os.path.isfile(args.mmdb):
@@ -192,9 +192,9 @@ if __name__ == "__main__":
     main()
     fname = args.mmdb
     with tqdm(
-             desc=f" {'Apply filter to trim mmdb file': <80}  ",
-            unit=" prefixes",
-            disable=args.quiet
-        ) as pb:
+        desc=f" {'Apply filter to trim mmdb file': <80}  ",
+        unit=" prefixes",
+        disable=args.quiet,
+    ) as pb:
         db = load_db(fname)
         rewrite(fname, db, pb)
