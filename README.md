@@ -13,6 +13,8 @@ In this project, the values we stored after conversion from MRT file into a Maxm
 The mmdb file created will be used by other applications for IP address/prefix lookup.
 ## Installation
 
+NOTE: Requires special version of the MaxMind DB Reader - first perform "pip install git+https://github.com/sbng/MaxMind-DB-Reader-python.git"
+
 Install with python pip install
 
 ```bash
