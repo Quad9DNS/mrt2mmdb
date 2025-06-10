@@ -2,7 +2,7 @@
 """
 This module get the arguments for the various founction for processing
 Any new argument can be added to this file to consolidate and reuse all possible
-arguments used. Use need to add the boolean keyword of the new argument and use the 
+arguments used. Use need to add the boolean keyword of the new argument and use the
 boolean variable to capture the argument needed when this module is called.
 """
 import argparse
@@ -27,6 +27,45 @@ def mmdb_arg(parser):
         type=str,
         help="Filename of Maxmind mmdb file for prefixes lookup and return description/ASN",
         default="data/GeoLite2-ASN.mmdb",
+    )
+
+
+def geonames_cities_arg(parser):
+    """geonames filename, containing cities populations"""
+    return parser.add_argument(
+        "--geonames_cities",
+        metavar="",
+        type=str,
+        help="Filename of geonames cities file for cities population lookup"
+        "(e.g. txt file from "
+        "https://download.geonames.org/export/dump/cities15000.zip)",
+        default="",
+    )
+
+
+def admincodes_arg(parser):
+    """geonames admincodes, containing administrative division names
+    (e.g. US states)"""
+    return parser.add_argument(
+        "--admincodes",
+        metavar="",
+        type=str,
+        help="Filename of geonames adminc1codes file "
+        "(e.g. "
+        "https://download.geonames.org/export/dump/admin1CodesASCII.txt)",
+        default="",
+    )
+
+
+def min_population_arg(parser):
+    """minimal population count allowed in dataset cities"""
+    return parser.add_argument(
+        "--min_population",
+        metavar="",
+        type=int,
+        help="Minimal population count allowed in dataset cities"
+        "(default: 15000)",
+        default=15000,
     )
 
 
@@ -116,6 +155,7 @@ def display_arg(parser):
         help="Display the database",
         default=False,
     )
+
 
 def trim_arg(parser):
     """define arguments to be added"""
