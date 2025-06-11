@@ -169,76 +169,74 @@ def get_full_iso_code(data):
     return None
 
 
-def blurred_generator(mreader, cities, admincodes, args, cities_to_update):
-    for prefix, data in mreader:
-        if 'city' in data and 'geoname_id' in data['city']:
-            if data['city']['geoname_id'] not in cities_to_update:
-                yield (prefix, data)
-                continue
+def blur(data, cities, admincodes, args, cities_to_update):
+    if 'city' in data and 'geoname_id' in data['city']:
+        if data['city']['geoname_id'] not in cities_to_update:
+            return data
 
-        same_country_cities = (cities.get(get_full_iso_code(data))
-                               if get_full_iso_code(data) else [])
+    same_country_cities = (cities.get(get_full_iso_code(data))
+                           if get_full_iso_code(data) else [])
 
-        if not same_country_cities:
-            same_country_cities = (cities.get(get_iso_code(data))
-                                   if get_iso_code(data) else [])
+    if not same_country_cities:
+        same_country_cities = (cities.get(get_iso_code(data))
+                               if get_iso_code(data) else [])
 
-        if not same_country_cities:
-            same_country_cities = []
+    if not same_country_cities:
+        same_country_cities = []
 
-        lat = None
-        lon = None
-        if 'location' in data:
-            lat = data['location']['latitude']
-            lon = data['location']['longitude']
-            del data['location']
-        if 'city' in data:
-            del data['city']
-        if 'subdivisions' in data:
-            del data['subdivisions']
+    lat = None
+    lon = None
+    if 'location' in data:
+        lat = data['location']['latitude']
+        lon = data['location']['longitude']
+        del data['location']
+    if 'city' in data:
+        del data['city']
+    if 'subdivisions' in data:
+        del data['subdivisions']
 
-        if lat and lon and len(same_country_cities) > 0:
-            for i in range(1, 101):
-                max_dist = i * 5
-                valid_cities = [
-                    c
-                    for c in same_country_cities
-                    if haversine(
-                        lon,
-                        lat,
-                        c['longitude'],
-                        c['latitude']
-                    ) < max_dist
-                ]
-                valid_cities.sort(key=itemgetter('population'))
-                if len(valid_cities) > 0:
-                    found_city = valid_cities[0]
-                    found_admincode = admincodes.get(
-                        f"{found_city['country code']}."
-                        f"{found_city['admin1 code']}"
-                    )
-                    data['location'] = {
-                        'longitude': found_city['longitude'],
-                        'latitude': found_city['latitude'],
+    if lat and lon and len(same_country_cities) > 0:
+        for i in range(1, 101):
+            max_dist = i * 5
+            valid_cities = [
+                c
+                for c in same_country_cities
+                if haversine(
+                    lon,
+                    lat,
+                    c['longitude'],
+                    c['latitude']
+                ) < max_dist
+            ]
+            valid_cities.sort(key=itemgetter('population'))
+            if len(valid_cities) > 0:
+                found_city = valid_cities[0]
+                found_admincode = admincodes.get(
+                    f"{found_city['country code']}."
+                    f"{found_city['admin1 code']}"
+                )
+                data['location'] = {
+                    'longitude': found_city['longitude'],
+                    'latitude': found_city['latitude'],
+                }
+                data['city'] = {
+                    'geoname_id': found_city['geonameid'],
+                    'names': {'en': found_city['asciiname']}
+                }
+                data['subdivisions'] = [
+                    {
+                        'iso_code': found_city['admin1 code'],
+                        'geoname_id': (
+                            found_admincode['geonameid']
+                            if found_admincode else 0),
+                        'names': {'en':
+                                  found_admincode['asciiname']}
+                        if found_admincode else {}
                     }
-                    data['city'] = {
-                        'geoname_id': found_city['geonameid'],
-                        'names': {'en': found_city['asciiname']}
-                    }
-                    data['subdivisions'] = [
-                        {
-                            'iso_code': found_city['admin1 code'],
-                            'geoname_id': (
-                                found_admincode['geonameid']
-                                if found_admincode else 0),
-                            'names': {'en':
-                                      found_admincode['asciiname']}
-                            if found_admincode else {}
-                        }
-                    ] if 'admin2 code' in found_city else []
-                    break
+                ] if 'admin2 code' in found_city else []
+                break
 
-        yield (prefix, data)
+    return data
 
 
 def main():
@@ -301,12 +299,12 @@ def main():
         disable=args.quiet,
     ) as pb:
         mreader = maxminddb.open_database(args.mmdb)
-        mreader_gen = (((prefix.compressed), data) for prefix, data in mreader)
+        mreader_gen = ((prefix.compressed, blur(data, cities, admincodes,
+                       args, cities_to_update)) for prefix, data in mreader)
         mreader.close
         rewrite(
             args.mmdb,
-            blurred_generator(mreader_gen, cities, admincodes,
-                              args, cities_to_update),
+            mreader_gen,
             pb,
             args.target
         )
