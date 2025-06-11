@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from math import asin, cos, radians, sin, sqrt
+from operator import itemgetter
 
 import maxminddb
 from mmdb_writer import MMDBWriter
@@ -43,13 +44,15 @@ def haversine(lon1, lat1, lon2, lat2):
 # pylint: disable=global-statement
 args = {}
 
+adm1codes_usage = ["US", "CH", "BE", "ME"]
+
 
 def parse_geonames_cities(
         fname, quiet, min_population
 ) -> dict[str, list[dict]]:
     """
     Parse geonames cities file
-    Groups into lists of cities per country code
+    Groups into lists of cities per country code and admin1 code
     Based on fields from: https://download.geonames.org/export/dump/
     """
     fieldnames = [
@@ -67,12 +70,16 @@ def parse_geonames_cities(
         unit=" lines",
         disable=args.quiet,
     ) as pb:
-        def update_pb(x):
+        def clean_up(x):
+            x['longitude'] = float(x['longitude'])
+            x['latitude'] = float(x['latitude'])
+            x['population'] = int(x['population'])
+            x['geonameid'] = int(x['geonameid'])
             pb.update(1)
             return x
 
         cities = [
-            update_pb(x)
+            clean_up(x)
             for x in csv.DictReader(
                 file,
                 fieldnames=fieldnames,
@@ -91,11 +98,15 @@ def parse_geonames_cities(
             if int(city['population']) < min_population:
                 continue
 
-            if not grouped.get(city['country code']):
-                grouped[city['country code']] = []
+            key = city['country code']
+            if 'admin1 code' in city and key in adm1codes_usage:
+                key = f"{city['country code']}.{city['admin1 code']}"
 
-            grouped[city['country code']].append(city)
-            pb.update(1)
+            if not grouped.get(key):
+                grouped[key] = []
+
+            grouped[key].append(city)
+        pb.update(1)
 
     return grouped
 
@@ -117,12 +128,13 @@ def parse_admincodes(fname, quiet) -> dict[str, dict]:
         unit=" lines",
         disable=args.quiet,
     ) as pb:
-        def update_pb(x):
+        def clean_up(x):
             pb.update(1)
+            x['geonameid'] = int(x['geonameid'])
             return x
 
         admincodes = [
-            update_pb(x)
+            clean_up(x)
             for x in csv.DictReader(
                 file,
                 fieldnames=fieldnames,
@@ -141,6 +153,19 @@ def get_iso_code(data):
     country = data.get('country')
     if country:
         return country.get('iso_code')
+    return None
+
+
+def get_full_iso_code(data):
+    iso_code = get_iso_code(data)
+    if iso_code:
+        if iso_code in adm1codes_usage:
+            subdivisions = data.get('subdivisions')
+            if subdivisions and len(subdivisions) > 0:
+                subdivision_iso_code = subdivisions[0]['iso_code']
+                if subdivision_iso_code:
+                    return f"{iso_code}.{subdivision_iso_code}"
+        return iso_code
     return None
 
 
@@ -201,8 +226,15 @@ def main():
     ) as pb:
         with maxminddb.open_database(args.mmdb) as mreader:
             for prefix, data in mreader:
-                same_country_cities = (cities[get_iso_code(data)] if
-                                       get_iso_code(data) else [])
+                same_country_cities = (cities.get(get_full_iso_code(data)) if
+                                       get_full_iso_code(data) else [])
+
+                if not same_country_cities:
+                    same_country_cities = (cities.get(get_iso_code(data)) if
+                                           get_iso_code(data) else [])
+
+                if not same_country_cities:
+                    same_country_cities = []
 
                 lat = None
                 lon = None
@@ -215,7 +247,7 @@ def main():
                 if 'subdivisions' in data:
                     del data['subdivisions']
 
-                if lat and lon:
+                if lat and lon and len(same_country_cities) > 0:
                     for i in range(1, 101):
                         max_dist = i * 5
                         valid_cities = [
@@ -229,26 +261,29 @@ def main():
                             ) < max_dist and c['population'] >
                             args.min_population
                         ]
-                        valid_cities.sort(lambda x: x['population'])
-                        found_city = next(valid_cities)
-                        if found_city:
-                            found_admincode = admincodes[
+                        valid_cities.sort(key=itemgetter('population'))
+                        if len(valid_cities) > 0:
+                            found_city = valid_cities[0]
+                            found_admincode = admincodes.get(
                                 f"{found_city['country code']}."
-                                f"{found_city['admin2 code']}"
-                            ]
+                                f"{found_city['admin1 code']}"
+                            )
                             data['location'] = {
                                 'longitude': found_city['longitude'],
                                 'latitude': found_city['latitude'],
                             }
                             data['city'] = {
-                                'names': [{'en': found_city['asciiname']}]
+                                'geoname_id': found_city['geonameid'],
+                                'names': {'en': found_city['asciiname']}
                             }
                             data['subdivisions'] = [
                                 {
-                                    'iso_code': found_city['admin2 code'],
-                                    'names': [{'en':
-                                               found_admincode['asciiname']}]
-                                    if found_admincode else []
+                                    'iso_code': found_city['admin1 code'],
+                                    'geoname_id': (found_admincode['geonameid']
+                                                   if found_admincode else 0),
+                                    'names': {'en':
+                                              found_admincode['asciiname']}
+                                    if found_admincode else {}
                                 }
                             ] if 'admin2 code' in found_city else []
                             break
