@@ -88,9 +88,9 @@ def load_db(fname):
     return res
 
 
-def rewrite(fname, dic_data, count):
-    shutil.copyfile(fname, fname + ".trim")
-    with open(fname + ".trim", "r+b") as fh:
+def rewrite(fname, dic_data, count, target_name):
+    shutil.copyfile(fname, target_name)
+    with open(target_name, "r+b") as fh:
         with Reader(fname) as reader:
             metadata = reader.metadata()
             treesize = int(((metadata.record_size * 2) / 8) * metadata.node_count)
@@ -166,4 +166,4 @@ if __name__ == "__main__":
             disable=args.quiet
         ) as pb:
         db = load_db(fname)
-        rewrite(fname, db, pb)
+        rewrite(fname, db, pb, fname + ".trim")

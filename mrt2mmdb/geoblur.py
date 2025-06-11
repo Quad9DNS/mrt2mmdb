@@ -7,18 +7,18 @@ to anonymize the data.
 import csv
 import logging
 import os
+import shutil
 import sys
 from math import asin, cos, radians, sin, sqrt
 from operator import itemgetter
 
 import maxminddb
-from mmdb_writer import MMDBWriter
-from netaddr import IPNetwork, IPSet
 from tqdm import tqdm
 
 from args import (admincodes_arg, database_type_arg, geonames_cities_arg,
                   get_args, log_level_arg, min_population_arg, mmdb_arg,
                   quiet_arg, target_arg)
+from filter import rewrite
 
 
 # Taken from: https://stackoverflow.com/a/4913653
@@ -106,7 +106,7 @@ def parse_geonames_cities(
                 grouped[key] = []
 
             grouped[key].append(city)
-        pb.update(1)
+            pb.update(1)
 
     return grouped
 
@@ -169,6 +169,79 @@ def get_full_iso_code(data):
     return None
 
 
+def blurred_generator(mreader, cities, admincodes, args, cities_to_update):
+    for prefix, data in mreader:
+        if 'city' in data and 'geoname_id' in data['city']:
+            if data['city']['geoname_id'] not in cities_to_update:
+                yield (prefix.compressed, data)
+                continue
+
+        same_country_cities = (cities.get(get_full_iso_code(data))
+                               if get_full_iso_code(data) else [])
+
+        if not same_country_cities:
+            same_country_cities = (cities.get(get_iso_code(data))
+                                   if get_iso_code(data) else [])
+
+        if not same_country_cities:
+            same_country_cities = []
+
+        lat = None
+        lon = None
+        if 'location' in data:
+            lat = data['location']['latitude']
+            lon = data['location']['longitude']
+            del data['location']
+        if 'city' in data:
+            del data['city']
+        if 'subdivisions' in data:
+            del data['subdivisions']
+
+        if lat and lon and len(same_country_cities) > 0:
+            for i in range(1, 101):
+                max_dist = i * 5
+                valid_cities = [
+                    c
+                    for c in same_country_cities
+                    if haversine(
+                        lon,
+                        lat,
+                        c['longitude'],
+                        c['latitude']
+                    ) < max_dist and c['population'] >
+                    args.min_population
+                ]
+                valid_cities.sort(key=itemgetter('population'))
+                if len(valid_cities) > 0:
+                    found_city = valid_cities[0]
+                    found_admincode = admincodes.get(
+                        f"{found_city['country code']}."
+                        f"{found_city['admin1 code']}"
+                    )
+                    data['location'] = {
+                        'longitude': found_city['longitude'],
+                        'latitude': found_city['latitude'],
+                    }
+                    data['city'] = {
+                        'geoname_id': found_city['geonameid'],
+                        'names': {'en': found_city['asciiname']}
+                    }
+                    data['subdivisions'] = [
+                        {
+                            'iso_code': found_city['admin1 code'],
+                            'geoname_id': (
+                                found_admincode['geonameid']
+                                if found_admincode else 0),
+                            'names': {'en':
+                                      found_admincode['asciiname']}
+                            if found_admincode else {}
+                        }
+                    ] if 'admin2 code' in found_city else []
+                    break
+
+        yield (prefix.compressed, data)
+
+
 def main():
     parser = get_args(
         [
@@ -214,94 +287,30 @@ def main():
     if args.admincodes:
         admincodes = parse_admincodes(args.admincodes, args.quiet)
 
-    writer = MMDBWriter(
-        ip_version=6, ipv4_compatible=True, database_type=args.database_type
-    )
+    cities_to_update = {city['geonameid']
+                        for group in cities.values()
+                        for city in group
+                        if city['population'] < args.min_population}
 
-    message = "Blurring location data from " + args.mmdb
+    shutil.copyfile(args.mmdb, args.target)
+
+    message = "Blurring location data from " + \
+        args.mmdb + " and writing to " + args.target
     with tqdm(
         desc=f" {message: <80}  ",
         unit=" prefixes",
         disable=args.quiet,
     ) as pb:
-        with maxminddb.open_database(args.mmdb) as mreader:
-            for prefix, data in mreader:
-                same_country_cities = (cities.get(get_full_iso_code(data)) if
-                                       get_full_iso_code(data) else [])
-
-                if not same_country_cities:
-                    same_country_cities = (cities.get(get_iso_code(data)) if
-                                           get_iso_code(data) else [])
-
-                if not same_country_cities:
-                    same_country_cities = []
-
-                lat = None
-                lon = None
-                if 'location' in data:
-                    lat = data['location']['latitude']
-                    lon = data['location']['longitude']
-                    del data['location']
-                if 'city' in data:
-                    del data['city']
-                if 'subdivisions' in data:
-                    del data['subdivisions']
-
-                if lat and lon and len(same_country_cities) > 0:
-                    for i in range(1, 101):
-                        max_dist = i * 5
-                        valid_cities = [
-                            c
-                            for c in same_country_cities
-                            if haversine(
-                                lon,
-                                lat,
-                                c['longitude'],
-                                c['latitude']
-                            ) < max_dist and c['population'] >
-                            args.min_population
-                        ]
-                        valid_cities.sort(key=itemgetter('population'))
-                        if len(valid_cities) > 0:
-                            found_city = valid_cities[0]
-                            found_admincode = admincodes.get(
-                                f"{found_city['country code']}."
-                                f"{found_city['admin1 code']}"
-                            )
-                            data['location'] = {
-                                'longitude': found_city['longitude'],
-                                'latitude': found_city['latitude'],
-                            }
-                            data['city'] = {
-                                'geoname_id': found_city['geonameid'],
-                                'names': {'en': found_city['asciiname']}
-                            }
-                            data['subdivisions'] = [
-                                {
-                                    'iso_code': found_city['admin1 code'],
-                                    'geoname_id': (found_admincode['geonameid']
-                                                   if found_admincode else 0),
-                                    'names': {'en':
-                                              found_admincode['asciiname']}
-                                    if found_admincode else {}
-                                }
-                            ] if 'admin2 code' in found_city else []
-                            break
-
-                writer.insert_network(
-                    IPSet(IPNetwork(str(prefix))),
-                    data
-                )
-                pb.update(1)
-
-    message = "Writing blurred results into " + args.target
-    with tqdm(
-        desc=f" {message: <80}  ",
-        unit="",
-        disable=args.quiet,
-    ) as pb:
-        writer.to_db_file(args.target)
-        pb.update(1)
+        mreader = maxminddb.open_database(args.mmdb)
+        mreader_gen = ((prefix, data) for prefix, data in mreader)
+        mreader.close
+        rewrite(
+            args.mmdb,
+            blurred_generator(mreader_gen, cities, admincodes,
+                              args, cities_to_update),
+            pb,
+            args.target
+        )
 
     return 0
 
