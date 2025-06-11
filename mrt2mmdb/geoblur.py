@@ -173,7 +173,7 @@ def blurred_generator(mreader, cities, admincodes, args, cities_to_update):
     for prefix, data in mreader:
         if 'city' in data and 'geoname_id' in data['city']:
             if data['city']['geoname_id'] not in cities_to_update:
-                yield (prefix.compressed, data)
+                yield (prefix, data)
                 continue
 
         same_country_cities = (cities.get(get_full_iso_code(data))
@@ -208,8 +208,7 @@ def blurred_generator(mreader, cities, admincodes, args, cities_to_update):
                         lat,
                         c['longitude'],
                         c['latitude']
-                    ) < max_dist and c['population'] >
-                    args.min_population
+                    ) < max_dist
                 ]
                 valid_cities.sort(key=itemgetter('population'))
                 if len(valid_cities) > 0:
@@ -239,7 +238,7 @@ def blurred_generator(mreader, cities, admincodes, args, cities_to_update):
                     ] if 'admin2 code' in found_city else []
                     break
 
-        yield (prefix.compressed, data)
+        yield (prefix, data)
 
 
 def main():
@@ -302,7 +301,7 @@ def main():
         disable=args.quiet,
     ) as pb:
         mreader = maxminddb.open_database(args.mmdb)
-        mreader_gen = ((prefix, data) for prefix, data in mreader)
+        mreader_gen = (((prefix.compressed), data) for prefix, data in mreader)
         mreader.close
         rewrite(
             args.mmdb,
