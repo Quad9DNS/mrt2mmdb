@@ -13,12 +13,11 @@ from math import asin, cos, radians, sin, sqrt
 from operator import itemgetter
 
 import maxminddb
-from tqdm import tqdm
-
 from args import (admincodes_arg, database_type_arg, geonames_cities_arg,
                   get_args, log_level_arg, min_population_arg, mmdb_arg,
                   quiet_arg, target_arg)
 from filter import rewrite
+from tqdm import tqdm
 
 
 # Taken from: https://stackoverflow.com/a/4913653
@@ -44,7 +43,7 @@ def haversine(lon1, lat1, lon2, lat2):
 # pylint: disable=global-statement
 args = {}
 
-adm1codes_usage = ["US", "CH", "BE", "ME"]
+adm1codes_usage = ["US"]
 
 
 def parse_geonames_cities(
