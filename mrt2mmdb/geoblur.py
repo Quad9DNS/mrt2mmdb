@@ -13,11 +13,12 @@ from math import asin, cos, radians, sin, sqrt
 from operator import itemgetter
 
 import maxminddb
+from tqdm import tqdm
+
 from args import (admincodes_arg, database_type_arg, geonames_cities_arg,
                   get_args, log_level_arg, min_population_arg, mmdb_arg,
                   quiet_arg, target_arg)
 from filter import rewrite
-from tqdm import tqdm
 
 
 # Taken from: https://stackoverflow.com/a/4913653
@@ -297,16 +298,20 @@ def main():
         unit=" prefixes",
         disable=args.quiet,
     ) as pb:
-        mreader = maxminddb.open_database(args.mmdb)
-        mreader_gen = ((prefix.compressed, blur(data, cities, admincodes,
-                       args, cities_to_update)) for prefix, data in mreader)
-        mreader.close
-        rewrite(
-            args.mmdb,
-            mreader_gen,
-            pb,
-            args.target
-        )
+        with maxminddb.open_database(args.mmdb) as mreader:
+            mreader_gen = (
+                (
+                    prefix.compressed,
+                    blur(data, cities, admincodes, args, cities_to_update)
+                )
+                for prefix, data in mreader
+            )
+            rewrite(
+                args.mmdb,
+                mreader_gen,
+                pb,
+                args.target
+            )
 
     return 0
 
