@@ -58,7 +58,7 @@ $ mrt2mmdb --mrt ../mke-20240329.mrt --mmdb GeoLite2-ASN.mmdb --target target.mm
  ASN without description                                                           : 3 prefixes
 ```
 
-A set of scripts (lookup.py, difference.py, filter.py) are available for diagnostic purposes and modification of mmdb file. These scripts allow the user to investigate the content of the generated mmdb file to ensure correctness of the data (lookup.py and difference.py). While filter.py could be use to update and filter keys from existing mmdb file. In the previous mmdb file generated (target.mmdb), the user can investigate the content of target.mmdb 
+A set of scripts (lookup.py, difference.py, filter.py, geoblur.py) are available for diagnostic purposes and modification of mmdb file. These scripts allow the user to investigate the content of the generated mmdb file to ensure correctness of the data (lookup.py and difference.py). The filter.py script could be use to update and filter keys from existing mmdb file. In the previous mmdb file generated (target.mmdb), the user can investigate the content of target.mmdb. The geoblur.py script can be used to apply "geographical blurring" to the database.
 
 ```bash
 :$ ./lookup.py --help                                      
@@ -108,7 +108,51 @@ options:
   --mmdb             Filename of Maxmind mmdb file for prefixes lookup and return description/ASN
   --trim [TRIM ...]  Trim the database by providing the key(s) to be removed from the json data
   --quiet            Turn off verbose (default:verbose)
+```
 
+geoblur.py can apply "geographical blurring" to the database, moving elements pointing to low population locations to nearest locations with higher population.
+```bash
+$ ./geoblur.py --help
+
+usage: geoblur.py [-h] [--mmdb ] [--geonames_cities ] [--admincodes ] [--min_population ] [--database_type ] [--target ]
+                  [--quiet] [--log_level ]
+
+options:
+  -h, --help          show this help message and exit
+  --mmdb              Filename of Maxmind mmdb file for prefixes lookup and return description/ASN
+  --geonames_cities   Filename of geonames cities file for cities population lookup(e.g. txt file from
+                      https://download.geonames.org/export/dump/cities15000.zip)
+  --admincodes        Filename of geonames adminc1codes file (e.g.
+                      https://download.geonames.org/export/dump/admin1CodesASCII.txt)
+  --min_population    Minimal population count allowed in dataset cities(default: 15000)
+  --database_type     Type pf mmdb database (default: mrt2mmdb)
+  --target            Filename of new target mmdb file generated from mmrt file
+  --quiet             Turn off verbose (default:verbose)
+  --log_level         logging level [CRITICAL|WARNING|INFO|DEBUG](default: WARNING)
+
+
+# Example blurring locations with population < 15000
+$ wget https://download.geonames.org/export/dump/cities15000.zip
+Saving 'cities15000.zip'
+HTTP response 200 OK [https://download.geonames.org/export/dump/cities15000.zip]
+
+$ unzip cities15000.zip
+Archive:  cities15000.zip
+  inflating: cities15000.txt
+
+$ wget https://download.geonames.org/export/dump/admin1CodesASCII.txt
+Saving 'admin1CodesASCII.txt'
+HTTP response 200 OK [https://download.geonames.org/export/dump/admin1CodesASCII.txt]
+
+$ ./geoblur.py --geonames_cities cities15000.txt --mmdb target.mmdb --target target.blurred.mmdb --admincodes admin1CodesASCII.txt --min_population 15000
+Reading cities data from cities15000.txt
+Grouping and filtering cities data
+Reading admincodes data from admin1CodesASCII.txt
+Blurring location data from target.mmdb and writing to target.blurred.mmdb
+```
+
+
+```bash
 # Demo. A simple target mmdb file with data section comprising of single key 'network'
 $./lookup.py --mmdb target.mmdb --display
 [
