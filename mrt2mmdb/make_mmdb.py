@@ -226,17 +226,22 @@ def convert_mrt_mmdb(fname, mrt, asn, quiet=False):
                     org_desc = ""
             except IndexError:
                 pass
-            writer.insert_network(
-                IPSet(IPNetwork(prefix)),
-                {
-                    "autonomous_system_number": int(as_num),
-                    "autonomous_system_organization": org_desc,
-                    "prefix": str(prefix),
-                    "path": " ".join(val[0]),
-                },
-            )
-            pb.update(1)
-            count += 1
+            try:
+                writer.insert_network(
+                    IPSet(IPNetwork(prefix)),
+                    {
+                        "autonomous_system_number": int(as_num),
+                        "autonomous_system_organization": org_desc,
+                        "prefix": str(prefix),
+                        "path": " ".join(val[0]),
+                    },
+                )
+                pb.update(1)
+                count += 1
+            except (ValueError, IndexError) as e:
+                # Skip problematic prefixes (typically /32 or /128 host routes)
+                pb.update(1)
+                continue
     message = "Writing mmda file " + fname
     with tqdm(
         desc=f" {message: <80}  ",
