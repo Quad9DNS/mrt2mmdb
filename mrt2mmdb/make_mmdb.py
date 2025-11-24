@@ -223,7 +223,7 @@ def convert_mrt_mmdb(fname, mrt, asn, quiet=False):
                     org_desc = asn[as_num]
                 else:
                     missing.append(as_num)
-                    org_desc = ""
+                    org_desc = "UNKNOWN"
             except IndexError:
                 pass
             try:
