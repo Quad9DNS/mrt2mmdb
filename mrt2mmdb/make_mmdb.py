@@ -266,6 +266,10 @@ def main():
     main function define the workflow to make a ASN dict->Load the
     corresponding mrt->convert the mrt into mmda
     """
+    
+    # Capture script start time
+    start_timestamp = time.time()
+    
     # Init route to get arguments and prase. Logging is also configured
     parser = get_args(
         [
@@ -317,8 +321,8 @@ def main():
     )
     display_stats("Prefixes without description", missing, logger, args.quiet)
     display_stats("ASN without description", set(missing), logger, args.quiet)
-    files_stats = all_files_create(
-        [args.mmdb, args.mrt, args.target, args.lookup_file], logger
+    files_stats = [start_timestamp] + all_files_create(
+        [args.mrt, args.target, args.lookup_file], logger
     )
 
     if args.prometheus:
