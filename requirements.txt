@@ -1,4 +1,4 @@
-deepdiff==8.0.1
+deepdiff==8.6.1
 maxminddb==2.6.2
 mmdb_writer==0.2.5
 mrtparse==2.2.0
